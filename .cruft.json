@@ -1,0 +1,14 @@
+{
+  "template": "https://github.com/saundharpreet/cookiecutter-simple-skeleton-service.git",
+  "commit": "5e6bcc5f86dad9345b397a014dde33a90bd0ad24",
+  "checkout": null,
+  "context": {
+    "cookiecutter": {
+      "project_name": "kafka-monitor-api-service",
+      "project_name_camel": "KafkaMonitorApiService",
+      "_template": "https://github.com/saundharpreet/cookiecutter-simple-skeleton-service.git",
+      "_commit": "5e6bcc5f86dad9345b397a014dde33a90bd0ad24"
+    }
+  },
+  "directory": null
+}
