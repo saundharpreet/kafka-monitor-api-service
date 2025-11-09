@@ -87,10 +87,11 @@ public class TopicConsumerService implements ApplicationListener<ApplicationRead
                 container.stop();
                 logger.info("Stopped listener for topic: {} with consumer group: {}", topicEntity.getTopicName(),
                         topicEntity.getConsumerGroup());
-
-                TopicEntity existingTopicEntity = topicService.get(topicEntity.getTopicName());
-                existingTopicEntity.setConsumerState(ConsumerState.STOPPED);
             }
+
+            topicService.delete(topicEntity.getTopicName());
+            topicDataService.delete(topicEntity.getTopicName());
+
             listenerContainerMap.remove(topicEntity.getConsumerGroup());
         } else {
             logger.warn("No listener found for topic: {} with consumer group: {}", topicEntity.getTopicName(),

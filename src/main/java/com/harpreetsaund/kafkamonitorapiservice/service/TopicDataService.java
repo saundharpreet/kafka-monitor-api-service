@@ -7,6 +7,8 @@ import org.springframework.data.redis.core.ListOperations;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
+
 @Service
 public class TopicDataService {
 
@@ -30,9 +32,9 @@ public class TopicDataService {
         topicDataEntityListOperations.trim(key, -100, -1);
     }
 
-    public void get(String topicName) {
+    public List<TopicDataEntity> get(String topicName) {
         logger.debug("Retrieving topic data entities for topic: {}", topicName);
-        topicDataEntityListOperations.range(topicEntityKeyPrefix + topicName, 0, -1);
+        return topicDataEntityListOperations.range(topicEntityKeyPrefix + topicName, 0, -1);
     }
 
     public void delete(String topicName) {
