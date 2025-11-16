@@ -5,8 +5,12 @@ import com.harpreetsaund.kafkamonitorapiservice.model.TopicEntity;
 import com.harpreetsaund.kafkamonitorapiservice.service.TopicDataService;
 import org.apache.avro.generic.GenericRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
+import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.header.Header;
 import org.apache.kafka.common.header.Headers;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.kafka.listener.ConsumerSeekAware;
 import org.springframework.kafka.listener.MessageListener;
 import reactor.util.annotation.NonNull;
 
@@ -14,15 +18,21 @@ import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
 
-public class TopicMessageListener implements MessageListener<String, GenericRecord> {
+public class TopicMessageListener implements MessageListener<String, GenericRecord>, ConsumerSeekAware {
+
+    private static final Logger logger = LoggerFactory.getLogger(TopicMessageListener.class);
 
     private final TopicEntity topicEntity;
 
     private final TopicDataService topicDataService;
 
-    public TopicMessageListener(TopicEntity topicEntity, TopicDataService topicDataService) {
+    private final Long consumerSeekTimestamp;
+
+    public TopicMessageListener(TopicEntity topicEntity, TopicDataService topicDataService,
+            Long consumerSeekTimestamp) {
         this.topicEntity = topicEntity;
         this.topicDataService = topicDataService;
+        this.consumerSeekTimestamp = consumerSeekTimestamp;
     }
 
     @Override
@@ -36,7 +46,7 @@ public class TopicMessageListener implements MessageListener<String, GenericReco
         topicDataEntity.setHeaders(convertHeadersToMap(consumerRecord.headers()));
         topicDataEntity.setPayload(consumerRecord.value().toString());
 
-        topicDataService.insert(topicDataEntity);
+        topicDataService.insert(topicDataEntity, consumerSeekTimestamp != null);
     }
 
     private Map<String, String> convertHeadersToMap(Headers headers) {
@@ -49,5 +59,14 @@ public class TopicMessageListener implements MessageListener<String, GenericReco
         }
 
         return headerMap;
+    }
+
+    @Override
+    public void onPartitionsAssigned(@NonNull Map<TopicPartition, Long> assignments,
+            @NonNull ConsumerSeekCallback callback) {
+        if (consumerSeekTimestamp != null && !assignments.isEmpty()) {
+            logger.info("Seeking {} assignments at instant {}", assignments.size(), consumerSeekTimestamp);
+            callback.seekToTimestamp(assignments.keySet().stream().toList(), consumerSeekTimestamp);
+        }
     }
 }

@@ -6,11 +6,13 @@ import com.harpreetsaund.kafkamonitorapiservice.model.TopicEntity;
 import com.harpreetsaund.kafkamonitorapiservice.service.TopicConsumerService;
 import com.harpreetsaund.kafkamonitorapiservice.service.TopicService;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.constraints.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.net.URI;
 import java.util.List;
 
 @RestController
@@ -35,23 +37,32 @@ public class TopicController {
 
     @GetMapping("/v1/topics")
     public ResponseEntity<List<TopicEntity>> getAllTopics() {
-        logger.info("Received request to get all topics");
+        logger.debug("Received request to get all topics");
         return ResponseEntity.ok(topicService.getAll());
     }
 
     @PostMapping("/v1/create")
     public ResponseEntity<Void> createTopicConsumer(@RequestBody KafkaMonitorRequest.Version1 kafkaMonitorRequest) {
-        logger.info("Received request to create topic consumer");
+        logger.debug("Received request to create topic consumer: {}", kafkaMonitorRequest);
         topicConsumerService.createAndStart(topicMapper.toTopicEntity(kafkaMonitorRequest));
 
-        return ResponseEntity.ok().build();
+        return ResponseEntity.created(URI.create("/v1/topics")).build();
+    }
+
+    @PutMapping("/v1/seek/{consumerSeekTimestamp}")
+    public ResponseEntity<Void> seekTopicConsumer(@RequestBody KafkaMonitorRequest.Version1 kafkaMonitorRequest,
+            @PathVariable @NotNull Long consumerSeekTimestamp) {
+        logger.debug("Received request to seek topic consumer: {}", kafkaMonitorRequest);
+        topicConsumerService.seek(topicMapper.toTopicEntity(kafkaMonitorRequest), consumerSeekTimestamp);
+
+        return ResponseEntity.noContent().build();
     }
 
     @DeleteMapping("/v1/delete")
     public ResponseEntity<Void> deleteTopicConsumer(@RequestBody KafkaMonitorRequest.Version1 kafkaMonitorRequest) {
-        logger.info("Received request to delete topic consumer");
+        logger.debug("Received request to delete topic consumer: {}", kafkaMonitorRequest);
         topicConsumerService.stopAndRemove(topicMapper.toTopicEntity(kafkaMonitorRequest));
 
-        return ResponseEntity.ok().build();
+        return ResponseEntity.noContent().build();
     }
 }

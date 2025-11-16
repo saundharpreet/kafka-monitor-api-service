@@ -8,6 +8,7 @@ public class TopicEntity {
     private String topicName;
     private String consumerGroup;
     private ConsumerState consumerState;
+    private Long consumerSeekTimestamp;
 
     public String getTopicName() {
         return topicName;
@@ -33,9 +34,18 @@ public class TopicEntity {
         this.consumerState = consumerState;
     }
 
+    public Long getConsumerSeekTimestamp() {
+        return consumerSeekTimestamp;
+    }
+
+    public void setConsumerSeekTimestamp(Long consumerSeekTimestamp) {
+        this.consumerSeekTimestamp = consumerSeekTimestamp;
+    }
+
     @Override
     public String toString() {
         return new ToStringBuilder(this).append("topicName", topicName).append("consumerGroup", consumerGroup)
-                .append("consumerState", consumerState).toString();
+                .append("consumerState", consumerState).append("consumerSeekTimestamp", consumerSeekTimestamp)
+                .toString();
     }
 }

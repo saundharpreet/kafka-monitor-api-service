@@ -17,6 +17,12 @@ spring:
       properties:
         "[specific.avro.reader]": "false"
 
+cache:
+  max-records: "100"
+  recovery:
+    max-records: "100000"
+    data-reset.cron: "0 0/10 * * * ?"
+
 logging:
   level:
     com.harpreetsaund: DEBUG

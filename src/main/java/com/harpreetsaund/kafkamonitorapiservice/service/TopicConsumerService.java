@@ -41,7 +41,7 @@ public class TopicConsumerService implements ApplicationListener<ApplicationRead
 
     public void createAndStart(TopicEntity topicEntity) {
         if (listenerContainerMap.containsKey(topicEntity.getConsumerGroup())) {
-            logger.warn("Listener already exists for topic: {} with consumer group: {}", topicEntity.getTopicName(),
+            logger.info("Listener already exists for topic: {} with consumer group: {}", topicEntity.getTopicName(),
                     topicEntity.getConsumerGroup());
 
             ConcurrentMessageListenerContainer<String, GenericRecord> existingContainer = listenerContainerMap
@@ -53,6 +53,8 @@ public class TopicConsumerService implements ApplicationListener<ApplicationRead
 
                 TopicEntity existingTopicEntity = topicService.get(topicEntity.getTopicName());
                 existingTopicEntity.setConsumerState(ConsumerState.RUNNING);
+                existingTopicEntity.setConsumerSeekTimestamp(null);
+
                 topicService.saveOrUpdate(existingTopicEntity);
 
                 return;
@@ -67,7 +69,7 @@ public class TopicConsumerService implements ApplicationListener<ApplicationRead
                 .createContainer(topicEntity.getTopicName());
         newContainer.getContainerProperties().setGroupId(topicEntity.getConsumerGroup());
         newContainer.getContainerProperties()
-                .setMessageListener(new TopicMessageListener(topicEntity, topicDataService));
+                .setMessageListener(new TopicMessageListener(topicEntity, topicDataService, null));
         newContainer.start();
 
         listenerContainerMap.put(topicEntity.getConsumerGroup(), newContainer);
@@ -79,7 +81,7 @@ public class TopicConsumerService implements ApplicationListener<ApplicationRead
                 topicEntity.getConsumerGroup());
     }
 
-    public void stopAndRemove(TopicEntity topicEntity) {
+    public boolean stop(TopicEntity topicEntity) {
         if (listenerContainerMap.containsKey(topicEntity.getConsumerGroup())) {
             ConcurrentMessageListenerContainer<String, GenericRecord> container = listenerContainerMap
                     .get(topicEntity.getConsumerGroup());
@@ -88,15 +90,48 @@ public class TopicConsumerService implements ApplicationListener<ApplicationRead
                 logger.info("Stopped listener for topic: {} with consumer group: {}", topicEntity.getTopicName(),
                         topicEntity.getConsumerGroup());
             }
+            return true;
+        }
 
+        logger.warn("No listener found for topic: {} with consumer group: {}", topicEntity.getTopicName(),
+                topicEntity.getConsumerGroup());
+        return false;
+    }
+
+    public void stopAndRemove(TopicEntity topicEntity) {
+        if (stop(topicEntity)) {
             topicService.delete(topicEntity.getTopicName());
             topicDataService.delete(topicEntity.getTopicName());
-
             listenerContainerMap.remove(topicEntity.getConsumerGroup());
-        } else {
-            logger.warn("No listener found for topic: {} with consumer group: {}", topicEntity.getTopicName(),
-                    topicEntity.getConsumerGroup());
         }
+    }
+
+    public void seek(TopicEntity topicEntity, Long consumerSeekTimestamp) {
+        if (listenerContainerMap.containsKey(topicEntity.getConsumerGroup())) {
+            TopicEntity existingTopicEntity = topicService.get(topicEntity.getTopicName());
+
+            if (existingTopicEntity.getConsumerState() != ConsumerState.SEEKING) {
+                ConcurrentMessageListenerContainer<String, GenericRecord> existingContainer = listenerContainerMap
+                        .get(topicEntity.getConsumerGroup());
+                existingContainer.stop();
+                existingContainer.getContainerProperties().setMessageListener(
+                        new TopicMessageListener(topicEntity, topicDataService, consumerSeekTimestamp));
+                existingContainer.start();
+
+                existingTopicEntity.setConsumerState(ConsumerState.SEEKING);
+                existingTopicEntity.setConsumerSeekTimestamp(topicEntity.getConsumerSeekTimestamp());
+
+                topicService.saveOrUpdate(existingTopicEntity);
+
+                logger.info("Seeking listener for topic: {} with consumer group: {} at instant: {}",
+                        topicEntity.getTopicName(), topicEntity.getConsumerGroup(), consumerSeekTimestamp);
+            }
+
+            return;
+        }
+
+        logger.warn("No listener found for topic: {} with consumer group: {} to seek", topicEntity.getTopicName(),
+                topicEntity.getConsumerGroup());
     }
 
     @Scheduled(fixedRate = 60000)
@@ -105,8 +140,20 @@ public class TopicConsumerService implements ApplicationListener<ApplicationRead
             switch (topicEntity.getConsumerState()) {
             case RUNNING -> createAndStart(topicEntity);
             case STOPPED -> stopAndRemove(topicEntity);
+            case SEEKING -> seek(topicEntity, topicEntity.getConsumerSeekTimestamp());
             default -> logger.warn("Unknown consumer state: {} for topic: {}", topicEntity.getConsumerState(),
                     topicEntity.getTopicName());
+            }
+        });
+    }
+
+    @Scheduled(cron = "${cache.recovery.data-reset.cron}")
+    public void resetSeek() {
+        topicService.getAll().forEach(topic -> {
+            if (topic.getConsumerState() == ConsumerState.SEEKING) {
+                stop(topic);
+                createAndStart(topic);
+                logger.info("Seek reset complete for topic: {}", topic.getTopicName());
             }
         });
     }
